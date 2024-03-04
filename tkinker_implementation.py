@@ -1,9 +1,15 @@
 import tkinter as tk
 from itertools import cycle
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageFont
+from tkinter import font
 
-
-
+class CustomButton(tk.Button):
+    def __init__(self, master=None, text="Button", x=0, y=0, command=None, font=("Comic Sans MS", 15), bg="light blue", fg='black', width=10, height=1):
+        tk.Button.__init__(self, master, text=text, command=command, font=font, bg=bg, fg=fg, width=width, height=height)
+        self.config(padx=0, pady=0)
+        self.relief = "groove"
+        self.borderwidth = 1
+        self.place(x=x, y=y)
 
 class PhotoFrame(tk.Tk):
     def __init__(self, *args, **kwargs):
@@ -12,7 +18,24 @@ class PhotoFrame(tk.Tk):
         # Set the size of the window
         self.geometry("1200x600")
 
-        # Load images for normal fish movement (right)
+
+    def open_second_window(self):
+        # Function to open the second window
+        second_window = tk.Toplevel(self)  # Create a new Toplevel window
+        second_window.title("Second Window")  # Set title for the second window
+        second_window.geometry("200x100")  # Set geometry for the second window
+        second_window.configure(background='white')  # Set background color for the second window
+
+
+    def open_third_window(self):
+        # Function to open the second window
+        third_window = tk.Toplevel(self)  # Create a new Toplevel window
+        third_window.title("third Window")  # Set title for the second window
+        third_window.geometry("500x300")  # Set geometry for the second window
+        third_window.configure(background='white')  # Set background color for the second window
+
+    def fish(self):
+         # Load images for normal fish movement (right)
         self.image_paths_right = ["C:\\Users\\Ira\\Downloads\\Fish12.png", "C:\\Users\\Ira\\Downloads\\Fish11.png", "C:\\Users\\Ira\\Downloads\\Fish10.png"]
         self.images_right = [Image.open(path) for path in self.image_paths_right]
         self.images_resized_right = [img.resize((100, 100)) for img in self.images_right]  # Resize images to 100x100
@@ -32,31 +55,7 @@ class PhotoFrame(tk.Tk):
         self.label = tk.Label(self)
         self.label.pack()
 
-        # Button to open the second window
-        button = tk.Button(self, text="Open Second Window", command=self.open_second_window)  # Create button
-        # button.pack(pady=20)  # Add button to the main window and specify padding
-        button.place(x=1050, y=20)  # Position the button with an indentation of 200 pixels from the left and 40 pixels from the top
-        # Button to open the second window
-        button1 = tk.Button(self, text="Open Third Window", command=self.open_third_window)  # Create button
-        # button1.pack(pady=40, padx=550)  # Add button to the main window and specify padding
-        button1.place(x=1050, y=60)  # Position the button with an indentation of 200 pixels from the left and 40 pixels from the top
-        # Start the animation
         self.animate()
-
-    def open_second_window(self):
-        # Function to open the second window
-        second_window = tk.Toplevel(self)  # Create a new Toplevel window
-        second_window.title("Second Window")  # Set title for the second window
-        second_window.geometry("200x100")  # Set geometry for the second window
-        second_window.configure(background='white')  # Set background color for the second window
-
-
-    def open_third_window(self):
-        # Function to open the second window
-        third_window = tk.Toplevel(self)  # Create a new Toplevel window
-        third_window.title("third Window")  # Set title for the second window
-        third_window.geometry("500x300")  # Set geometry for the second window
-        third_window.configure(background='white')  # Set background color for the second window
 
     def animate(self):
         # Move the fish image horizontally
@@ -81,8 +80,29 @@ class PhotoFrame(tk.Tk):
         # Schedule the next animation
         self.after(100, self.animate)  # Change animation speed as needed
 
-    
+
+
+    def add_right_bar_buttons(self):
+
+         # Button to open the second window
+        button = tk.Button(self, text="Open Second Window", command=self.open_second_window)  # Create button
+        button.place(x=1050, y=20)  # Position the button with an indentation of 200 pixels from the left and 40 pixels from the top
+
+        # Button to open the third window
+        button1 = tk.Button(self, text="Open Third Window", command=self.open_third_window)  # Create button
+        button1.place(x=1050, y=60)  # Position the button with an indentation of 200 pixels from the left and 40 pixels from the top
+
+        # Start the animation
+        # self.animate()
+
+        # Create a custom button
+        CustomButton(self, text="Manage Fish", x=10, y=10, command=lambda: print("Кнопка нажата!"))
+
+
 if __name__ == "__main__":
     app = PhotoFrame()
+    app.add_right_bar_buttons()
+    app.fish()
+    # app.animate()
     app.mainloop()
 

@@ -11,11 +11,11 @@ from PyQt5.QtMultimedia import QSound
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel
 import sys
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QSlider, QLabel, QPushButton
-from PyQt5.QtWidgets import QComboBox
-
-
-
-
+from PyQt5.QtWidgets import QComboBox, QRadioButton
+import psycopg2
+from psycopg2 import extras
+from datetime import datetime
+import datetime
 
 
 scale = 1.8
@@ -28,6 +28,15 @@ global_shift_y = int(130*scale)
 
 fish_images = 0
 
+fish_table = 0
+
+connection_params = {
+    'dbname': 'fish3',
+    'user': 'postgres',
+    'password': '1',
+    'host': 'localhost',
+    'port': '5432'
+}
 
 class Fish:
     def __init__(self, age, speed, size, fish_type, shift_x=global_shift_x, shift_y=global_shift_y):
@@ -165,18 +174,24 @@ class Aquarium(QMainWindow):
         self.setGeometry(int(100*scale), int(100*scale), int(1400*scale), int(850*scale))
         self.setStyleSheet("background-color: white;")
 
-        self.aquarium_image = QPixmap('Full.png')
+        # Получаем путь к папке с ресурсами
+        resource_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources')
 
-        self.click_sound = QSound("click.wav")  # Указываем путь к звуковому файлу
+        self.aquarium_image = QPixmap(os.path.join(resource_dir,'Full.png'))
+
+        self.click_sound = QSound(os.path.join(resource_dir,"click.wav"))  # Указываем путь к звуковому файлу
 
 
         global fish_images
 
+        
+
+        # fish_images с обновленными путями к изображениям
         fish_images = {
-            'type1': [QPixmap('type1_fish1.png'), QPixmap('type1_fish2.png'), QPixmap('type1_fish3.png'), QPixmap('type1_fish2.png'), QPixmap('type1_fish1.png'), QPixmap('type1_fish4.png'), QPixmap('type1_fish5.png'), QPixmap('type1_fish4.png')],
-            'type2': [QPixmap('type2_fish1.png'), QPixmap('type2_fish2.png'), QPixmap('type2_fish3.png'), QPixmap('type2_fish2.png'), QPixmap('type2_fish1.png'), QPixmap('type2_fish4.png'), QPixmap('type2_fish5.png'), QPixmap('type2_fish4.png')],
-            'type3': [QPixmap('type3_fish1.png'), QPixmap('type3_fish2.png'), QPixmap('type3_fish3.png'), QPixmap('type3_fish2.png'), QPixmap('type3_fish1.png'), QPixmap('type3_fish4.png'), QPixmap('type3_fish5.png'), QPixmap('type3_fish4.png')],
-            'type4': [QPixmap('type4_fish1.png'), QPixmap('type4_fish2.png'), QPixmap('type4_fish3.png'), QPixmap('type4_fish2.png'), QPixmap('type4_fish1.png'), QPixmap('type4_fish4.png'), QPixmap('type4_fish5.png'), QPixmap('type4_fish4.png')]
+            'type1': [QPixmap(os.path.join(resource_dir, 'type1_fish1.png')), QPixmap(os.path.join(resource_dir, 'type1_fish2.png')), QPixmap(os.path.join(resource_dir, 'type1_fish3.png')), QPixmap(os.path.join(resource_dir, 'type1_fish2.png')), QPixmap(os.path.join(resource_dir, 'type1_fish1.png')), QPixmap(os.path.join(resource_dir, 'type1_fish4.png')), QPixmap(os.path.join(resource_dir, 'type1_fish5.png')), QPixmap(os.path.join(resource_dir, 'type1_fish4.png'))],
+            'type2': [QPixmap(os.path.join(resource_dir, 'type2_fish1.png')), QPixmap(os.path.join(resource_dir, 'type2_fish2.png')), QPixmap(os.path.join(resource_dir, 'type2_fish3.png')), QPixmap(os.path.join(resource_dir, 'type2_fish2.png')), QPixmap(os.path.join(resource_dir, 'type2_fish1.png')), QPixmap(os.path.join(resource_dir, 'type2_fish4.png')), QPixmap(os.path.join(resource_dir, 'type2_fish5.png')), QPixmap(os.path.join(resource_dir, 'type2_fish4.png'))],
+            'type3': [QPixmap(os.path.join(resource_dir, 'type3_fish1.png')), QPixmap(os.path.join(resource_dir, 'type3_fish2.png')), QPixmap(os.path.join(resource_dir, 'type3_fish3.png')), QPixmap(os.path.join(resource_dir, 'type3_fish2.png')), QPixmap(os.path.join(resource_dir, 'type3_fish1.png')), QPixmap(os.path.join(resource_dir, 'type3_fish4.png')), QPixmap(os.path.join(resource_dir, 'type3_fish5.png')), QPixmap(os.path.join(resource_dir, 'type3_fish4.png'))],
+            'type4': [QPixmap(os.path.join(resource_dir, 'type4_fish1.png')), QPixmap(os.path.join(resource_dir, 'type4_fish2.png')), QPixmap(os.path.join(resource_dir, 'type4_fish3.png')), QPixmap(os.path.join(resource_dir, 'type4_fish2.png')), QPixmap(os.path.join(resource_dir, 'type4_fish1.png')), QPixmap(os.path.join(resource_dir, 'type4_fish4.png')), QPixmap(os.path.join(resource_dir, 'type4_fish5.png')), QPixmap(os.path.join(resource_dir, 'type4_fish4.png'))]
         }
 
         self.fish_list = []
@@ -189,8 +204,8 @@ class Aquarium(QMainWindow):
 
 
     def set_font(self):
-        if os.path.isfile("LoveDays.ttf"):
-            font_id = QFontDatabase.addApplicationFont("LoveDays.ttf")
+        if os.path.isfile("resources/LoveDays.ttf"):
+            font_id = QFontDatabase.addApplicationFont("resources/LoveDays.ttf")
             if font_id != -1:
                 font_family = QFontDatabase.applicationFontFamilies(font_id)[0]
         else:
@@ -203,11 +218,15 @@ class Aquarium(QMainWindow):
 
         self.set_font()
 
-        button_style = ("QPushButton { background-color: blue; color: white; font-size: 20pt; }"
+        button_style = ("QPushButton { background-color: green; color: white; font-size: 20pt; }"
+                    "QPushButton:hover { background-color: lightblue; }"
+                    "QPushButton:pressed { background-color: darkblue; }")
+        
+        button_style1 = ("QPushButton { background-color: blue; color: white; font-size: 20pt; }"
                     "QPushButton:hover { background-color: lightblue; }"
                     "QPushButton:pressed { background-color: darkblue; }")
 
-        self.button = QPushButton('Manage Fish', self)
+        self.button = QPushButton('Add Fish', self)
         self.button.setGeometry(int(x*scale), int(y*scale), int(160*scale), int(60*scale))
         self.button.setStyleSheet(button_style)
         self.button.setFont(self.font)
@@ -215,13 +234,13 @@ class Aquarium(QMainWindow):
 
         self.button1 = QPushButton('Button2', self)
         self.button1.setGeometry(int(x*scale), int((y+100)*scale), int(160*scale), int(60*scale))
-        self.button1.setStyleSheet(button_style)
+        self.button1.setStyleSheet(button_style1)
         self.button1.setFont(self.font)
         self.button1.clicked.connect(self.button_clicked)
 
         self.button2 = QPushButton('Button3', self)
         self.button2.setGeometry(int(x*scale), int((y+200)*scale), int(160*scale), int(60*scale))
-        self.button2.setStyleSheet(button_style)
+        self.button2.setStyleSheet(button_style1)
         self.button2.setFont(self.font)
         self.button2.clicked.connect(self.button_clicked)
 
@@ -238,14 +257,54 @@ class Aquarium(QMainWindow):
         second_window.exec_()
 
 
-    def create_fish(self):
+    def create_fish1(self):
         for _ in range(10):
             age = random.randint(1, 100)
             speed = 1
             size = int((age // 5 + 75)*scale)
             fish_type = random.choice(['type1', 'type2', 'type3', 'type4'])  # Выбираем случайный тип рыбы
+
+
             fish = Fish(age, speed, size, fish_type)
             self.fish_list.append(fish)
+
+
+    def create_fish(self):
+        global fish_table
+        for el in fish_table:
+
+            age = self.calc_age(el[1], el[3])
+            speed = 1
+            size = self.fish_size(age)
+            fish_type = self.fish_type(el[4])
+
+            fish = Fish(age, speed, size, fish_type)
+            self.fish_list.append(fish)
+
+    def fish_size(self, age):
+        return int((age // 5 + 75)*scale)
+    
+    def calc_age(self, date_added, age_in_months_at_addition):
+        # Получаем сегодняшнюю дату
+        today = datetime.date.today()
+
+        # Рассчитываем разницу между сегодняшней датой и датой добавления
+        age_delta = today - date_added.date()
+
+        # Преобразуем полученное количество дней в месяцы
+        age_in_months = age_delta.days // 30
+
+        # Добавляем возраст рыбы на момент добавления
+        age_in_months += age_in_months_at_addition
+
+        return age_in_months
+
+    
+    def fish_type(self, a_type):
+        keys = ['Cory catfish', 'Guppy', 'Neon Tetra', 'Platies']
+        values = ['type1', 'type2', 'type3', 'type4']
+        my_dict = dict(zip(keys, values))
+        return my_dict[a_type]
 
     def update_fish(self):
         for fish in self.fish_list:
@@ -266,34 +325,50 @@ class Aquarium(QMainWindow):
 class SecondWindow(QDialog):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Manage Fish")
+        self.setWindowTitle("Add Fish")
         self.setFixedSize(int(500*scale), int(350*scale))  # Установка фиксированного размера окна
         self.label = QLabel("Это второе окно", self)
-        self.label.move(50, 50)  # Установка позиции для метки
+        self.label.move(int(25*scale), int(25*scale))  # Установка позиции для метки
 
-
-        self.age_slider(50, 50)
-        self.create_combo_box(200, 100)  # Добавление выпадающего списка
-        self.Second_Window_buttons(100, 100)
+        self.click_sound = QSound("resources/click.wav")  # Указываем путь к звуковому файлу
     
+        self.create_combo_box(50, 50)  # Добавление выпадающего списка
+        self.age_slider(50, 100)
+        self.add_radio_buttons(280, 50)
+        self.button_add(50, 200)
+        self.button_clean(300, 300)
+    
+    def button_clicked(self):
+        print("Кнопка была нажата!")
+        self.click_sound.play()
 
-    def Second_Window_buttons(self, x, y):
-        button_style = ("QPushButton { background-color: blue; color: white; font-size: 20pt; }"
+
+    def button_clean(self, x, y):
+
+        button_style = ("QPushButton { background-color: blue; color: white; font-size: 12pt; }"
                     "QPushButton:hover { background-color: lightblue; }"
                     "QPushButton:pressed { background-color: darkblue; }")
         
-
-        self.button = QPushButton('Button1', self)
-        self.button.setGeometry(int(x*scale), int(y*scale), int(120*scale), int(50*scale))
-        self.button.setStyleSheet(button_style)
-        # self.button.setFont(self.font)
-        # self.button.clicked.connect(self.button_clicked_open_window)
-
-        self.button1 = QPushButton('Button2', self)
-        self.button1.setGeometry(int(x*scale), int((y+100)*scale), int(160*scale), int(60*scale))
+        self.button1 = QPushButton('Clean All', self)
+        self.button1.setGeometry(int(x*scale), int(y*scale), int(80*scale), int(30*scale))
         self.button1.setStyleSheet(button_style)
         # self.button1.setFont(self.font)
         # self.button1.clicked.connect(self.button_clicked)
+
+
+    def button_add(self, x, y):
+
+        button_style = ("QPushButton { background-color: green; color: white; font-size: 20pt; }"
+                    "QPushButton:hover { background-color: lightblue; }"
+                    "QPushButton:pressed { background-color: darkblue; }")
+        
+        self.button = QPushButton('Add Fish', self)
+        self.button.setGeometry(int(x*scale), int(y*scale), int(120*scale), int(50*scale))
+        self.button.setStyleSheet(button_style)
+        # self.button.setFont(self.font)
+        self.button.clicked.connect(self.button_clicked)
+
+
 
     def age_slider(self, x, y):
         self.slider = QSlider(self)
@@ -301,9 +376,11 @@ class SecondWindow(QDialog):
         self.slider.setFixedSize(int(400*scale), int(25*scale))  # Устанавливаем размеры слайдера
         self.slider.move(int(x*scale), int(y*scale))  # Устанавливаем позицию для слайдера
         self.slider.setMinimum(0)  # Устанавливаем минимальное значение
-        self.slider.setMaximum(100)  # Устанавливаем максимальное значение
-        self.slider.setValue(50)  # Устанавливаем начальное значение
+        self.slider.setMaximum(60)  # Устанавливаем максимальное значение
+        self.slider.setValue(15)  # Устанавливаем начальное значение
         self.slider.setTickInterval(10)  # Устанавливаем интервал меток
+        self.slider.valueChanged.connect(self.update_slider_label)  # Подключаем обновление метки к изменению значения слайдера
+
         self.slider.setStyleSheet("QSlider::groove:horizontal {"
                           "    height: 20px;"  # Устанавливаем высоту бара
                           "    border-radius: 5px;"  # Устанавливаем скругление углов
@@ -317,6 +394,12 @@ class SecondWindow(QDialog):
                           "    border-radius: 10px;"  # Устанавливаем скругление углов ползунка
                           "}"
                           )
+        # Создание метки для отображения текущего значения слайдера
+        self.slider_label = QLabel('50', self)
+        self.slider_label.move(int((x + 400 + 10)*scale), int(y*scale))  # Устанавливаем позицию метки
+
+    def update_slider_label(self, value):
+        self.slider_label.setText(str(value))  # Обновляем значение метки при изменении значения слайдера
 
 
     def create_combo_box(self, x, y):
@@ -327,11 +410,82 @@ class SecondWindow(QDialog):
         self.combo_box.addItems(["Option 1", "Option 2", "Option 3", "Option 4"])
         self.combo_box.move(int(x*scale), int(y*scale))
 
+    def add_radio_buttons(self, x, y):
 
+        self.radio_male = QRadioButton('Male', self)
+        self.radio_female = QRadioButton('Female', self)
+        self.radio_male.move(int(x*scale), int(y*scale))
+        self.radio_female.move(int((x+100)*scale), int(y*scale))
+        self.radio_male.setChecked(True)  # Устанавливаем "Male" по умолчанию
+        # Увеличиваем размер радиокнопок
+        self.radio_male.setStyleSheet("QRadioButton { font-size: 40px; }")
+        self.radio_female.setStyleSheet("QRadioButton { font-size: 40px; }")
+
+        # # Устанавливаем размер круглого кржочка
+        # self.radio_male.setStyleSheet("QRadioButton::indicator { width: 20px; height: 20px; }")
+        # self.radio_female.setStyleSheet("QRadioButton::indicator { width: 20px; height: 20px; }")
+
+class db:
+    def __init__(self, connection_params):
+        self.connection_params = connection_params
+
+    def get_fish(self):
+        # 
+        try:
+            conn = psycopg2.connect(**self.connection_params)
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM allfish')
+            all_fish = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            print(all_fish)
+            return all_fish
+        except:
+            print('Can`t establish connection to database')
+
+    def add_fish(self, a , b):
+
+        try:
+            # пытаемся подключиться к базе данных
+            conn = psycopg2.connect(dbname='fish3', user='postgres', password='1', host='localhost', port='5432')
+            cursor = conn.cursor()
+
+            # SQL-запрос для добавления новой строки
+            insert_query = "INSERT INTO allfish (type_of_fish, sex, age, date_entered) VALUES (%s, %s, %s, %s)"  # замените column1, column2 и column3 на реальные названия столбцов
+
+            current_time = datetime.now().replace(microsecond=0)  # убираем миллисекунды
         
+            # данные для новой строки
+            new_data = ('Neon Tetra', 'F', 100 ,current_time)  # замените value1, value2 и value3 на реальные значения
 
-if __name__ == '__main__':
+            # выполнение запроса
+            cursor.execute(insert_query, new_data)
+
+            # подтверждаем транзакцию
+            conn.commit()
+
+            # закрываем курсор и соединение
+            cursor.close()
+            conn.close()
+
+            print("Запись успешно добавлена!")
+
+        except psycopg2.Error as e:
+            # в случае ошибки выводим сообщение
+            print('Ошибка при добавлении записи в базу данных:', e)
+
+
+def main():
+    global fish_table, connection_params
+    my_db = db(connection_params)
+    fish_table = my_db.get_fish()
+    print(len(fish_table))
+
     app = QApplication(sys.argv)
     aquarium = Aquarium()
     aquarium.show()
     sys.exit(app.exec_())
+
+
+if __name__ == '__main__':
+    main()

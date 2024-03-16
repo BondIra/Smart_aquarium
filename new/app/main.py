@@ -1,21 +1,20 @@
 import sys
 import random
-from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton
-from PyQt5.QtGui import QPixmap, QPainter, QTransform
-from PyQt5.QtCore import Qt, QTimer, QSize, QRect
-from PyQt5.QtGui import QFontDatabase
 import os
-from PyQt5.QtGui import QFont
-from PyQt5.QtCore import QUrl
-from PyQt5.QtMultimedia import QSound
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel
-import sys
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QSlider, QLabel, QPushButton
-from PyQt5.QtWidgets import QComboBox, QRadioButton
 import psycopg2
-from psycopg2 import extras
-from datetime import datetime
 import datetime
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QDialog, QSlider, QComboBox, QRadioButton, QWidget, QProgressBar
+from PyQt5.QtGui import QPixmap, QPainter, QTransform, QFont, QFontDatabase
+from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtMultimedia import QSound
+from PyQt5.QtWidgets import QApplication, QWidget, QProgressBar, QVBoxLayout, QStatusBar
+from PyQt5.QtWidgets import QProgressBar, QStyleOptionProgressBar, QStyle
+import copy
+from datetime import timedelta
+from PyQt5.QtGui import QPainter, QColor
+
+# from datetime import datetime
+
 
 
 scale = 1.8
@@ -26,9 +25,22 @@ aquarium_height = int(640*scale)
 global_shift_x = int(60*scale)
 global_shift_y = int(130*scale)
 
-fish_images = 0
+fish_images = None
 
-fish_table = 0
+fish_table = []
+
+fish_list = []
+
+aquarium_volume = 100
+
+heater_switch = True
+
+filter_switch = True
+
+feeder_amount = 50000
+
+# show_red_circle = True
+
 
 connection_params = {
     'dbname': 'fish3',
@@ -37,6 +49,34 @@ connection_params = {
     'host': 'localhost',
     'port': '5432'
 }
+
+
+def write_current_time_to_file(file_path):
+    current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
+    with open(file_path, 'w') as file:
+        file.write(current_time)
+
+def read_time_from_file(file_path):
+    try:
+        with open(file_path, 'r') as file:
+            time_string = file.readline().strip()
+            if time_string:
+                return datetime.datetime.strptime(time_string, '%Y-%m-%d %H:%M')
+            else:
+                # Если строка пуста, записываем в файл текущее время и возвращаем его
+                write_current_time_to_file(file_path)
+                return datetime.datetime.now()
+    except FileNotFoundError:
+        # Если файл не существует, записываем в него текущее время и возвращаем его
+        write_current_time_to_file(file_path)
+        return datetime.datetime.now()
+
+
+feeder_update_date = read_time_from_file("cache/feeder_date.txt")
+
+filter_update_date = read_time_from_file("cache/filter_date.txt")
+
+
 
 class Fish:
     def __init__(self, age, speed, size, fish_type, shift_x=global_shift_x, shift_y=global_shift_y):
@@ -51,7 +91,7 @@ class Fish:
         self.images = fish_images
         # инициализируют начальное положение рыбы в аквариуме
         self.x = random.randint(shift_x, aquarium_width - self.size)
-        self.y = random.randint(shift_y, aquarium_height - self.size+int(50*scale))
+        self.y = random.randint(shift_y, aquarium_height - self.size+int(60*scale))
 
     def move(self):
         if self.direction == 'up':
@@ -222,55 +262,68 @@ class Aquarium(QMainWindow):
                     "QPushButton:hover { background-color: lightblue; }"
                     "QPushButton:pressed { background-color: darkblue; }")
         
-        button_style1 = ("QPushButton { background-color: blue; color: white; font-size: 20pt; }"
+        button_style1 = ("QPushButton { background-color: orange; color: white; font-size: 20pt; }"
                     "QPushButton:hover { background-color: lightblue; }"
                     "QPushButton:pressed { background-color: darkblue; }")
 
+        button_style2 = ("QPushButton { background-color: blue; color: white; font-size: 20pt; }"
+                    "QPushButton:hover { background-color: lightblue; }"
+                    "QPushButton:pressed { background-color: darkblue; }")
+        
         self.button = QPushButton('Add Fish', self)
         self.button.setGeometry(int(x*scale), int(y*scale), int(160*scale), int(60*scale))
         self.button.setStyleSheet(button_style)
         self.button.setFont(self.font)
-        self.button.clicked.connect(self.button_clicked_open_window)
+        self.button.clicked.connect(self.button_clicked_open_add_window)
 
-        self.button1 = QPushButton('Button2', self)
+        self.button1 = QPushButton('Service', self)
         self.button1.setGeometry(int(x*scale), int((y+100)*scale), int(160*scale), int(60*scale))
         self.button1.setStyleSheet(button_style1)
         self.button1.setFont(self.font)
-        self.button1.clicked.connect(self.button_clicked)
+        self.button1.clicked.connect(self.button_clicked_open_service_window)
 
-        self.button2 = QPushButton('Button3', self)
+        self.button2 = QPushButton('Statistics', self)
         self.button2.setGeometry(int(x*scale), int((y+200)*scale), int(160*scale), int(60*scale))
-        self.button2.setStyleSheet(button_style1)
+        self.button2.setStyleSheet(button_style2)
         self.button2.setFont(self.font)
-        self.button2.clicked.connect(self.button_clicked)
+        self.button2.clicked.connect(self.button_clicked_open_stats_window)
 
 
     # Функция, вызываемая при нажатии на кнопку
-    def button_clicked(self):
+    def button_clicked_open_stats_window(self):
         print("Кнопка была нажата!")
         self.click_sound.play()
+        stats_window = StatsWindow()
+        stats_window.exec_()
 
-    def button_clicked_open_window(self):
+    def button_clicked_open_add_window(self):
         print("Кнопка была нажата!")
         self.click_sound.play()
         second_window = SecondWindow()
         second_window.exec_()
+        
+
+    def button_clicked_open_service_window(self):
+        print("Кнопка была нажата!")
+        self.click_sound.play()
+        service_window = ServiceWindow()
+        service_window.exec_()
 
 
-    def create_fish1(self):
-        for _ in range(10):
-            age = random.randint(1, 100)
-            speed = 1
-            size = int((age // 5 + 75)*scale)
-            fish_type = random.choice(['type1', 'type2', 'type3', 'type4'])  # Выбираем случайный тип рыбы
+    # def create_fish1(self):
+    #     for _ in range(10):
+    #         age = random.randint(1, 100)
+    #         speed = 1
+    #         size = int((age // 5 + 75)*scale)
+    #         fish_type = random.choice(['type1', 'type2', 'type3', 'type4'])  # Выбираем случайный тип рыбы
 
 
-            fish = Fish(age, speed, size, fish_type)
-            self.fish_list.append(fish)
+    #         fish = Fish(age, speed, size, fish_type)
+    #         self.fish_list.append(fish)
 
 
     def create_fish(self):
-        global fish_table
+        global fish_table, fish_list
         for el in fish_table:
 
             age = self.calc_age(el[1], el[3])
@@ -279,12 +332,13 @@ class Aquarium(QMainWindow):
             fish_type = self.fish_type(el[4])
 
             fish = Fish(age, speed, size, fish_type)
-            self.fish_list.append(fish)
+            fish_list.append(fish)
 
     def fish_size(self, age):
         return int((age // 5 + 75)*scale)
     
-    def calc_age(self, date_added, age_in_months_at_addition):
+    @staticmethod
+    def calc_age(date_added, age_in_months_at_addition):
         # Получаем сегодняшнюю дату
         today = datetime.date.today()
 
@@ -307,7 +361,8 @@ class Aquarium(QMainWindow):
         return my_dict[a_type]
 
     def update_fish(self):
-        for fish in self.fish_list:
+        global fish_list
+        for fish in fish_list:
             fish.move()
             fish.update_image()
             if random.random() < 0.01:  # Change direction randomly
@@ -315,11 +370,14 @@ class Aquarium(QMainWindow):
         self.update()
 
     def paintEvent(self, event):
+        global fish_list, filter_switch
         painter = QPainter(self)
-
+        
         painter.drawPixmap(int(-130*scale), int(-80*scale), int(1400*scale), int(1000*scale), self.aquarium_image)
-
-        for fish in self.fish_list:
+        if filter_switch:
+            painter.setBrush(QColor('red'))
+            painter.drawEllipse(int(1038*scale), int(188*scale), int(15*scale), int(15*scale))
+        for fish in fish_list:
             fish.draw(painter)
 
 class SecondWindow(QDialog):
@@ -331,16 +389,57 @@ class SecondWindow(QDialog):
         self.label.move(int(25*scale), int(25*scale))  # Установка позиции для метки
 
         self.click_sound = QSound("resources/click.wav")  # Указываем путь к звуковому файлу
-    
+        self.age = 15
+        self.sex = 'M'
+        self.type = "Cory catfish"
         self.create_combo_box(50, 50)  # Добавление выпадающего списка
         self.age_slider(50, 100)
         self.add_radio_buttons(280, 50)
         self.button_add(50, 200)
         self.button_clean(300, 300)
     
-    def button_clicked(self):
+    def button_add_clicked(self):
         print("Кнопка была нажата!")
-        self.click_sound.play()
+        global aquarium_volume, fish_list
+        if len(fish_list) < aquarium_volume/2:
+            self.click_sound.play()
+            global connection_params, fish_table
+            my_db = db(connection_params)
+
+            my_db.add_fish(self.type, self.sex, self.age)
+            current_time = datetime.datetime.now().replace(microsecond=0)  # убираем миллисекунды
+            temp_fish = (self.sex, current_time, 0, self.age, self.type)  
+            # ВНИМАНИЕ 0 Это не ПРАВДА
+            fish_table.append(temp_fish)
+            speed = 1
+            fish_type= self.fish_type_keys(self.type)
+            fish = Fish(self.age, speed, self.fish_size(self.age), fish_type)
+            fish_list.append(fish)
+        else:
+            print("no more space")
+
+    def fish_size(self, age):
+        return int((age // 5 + 75)*scale)
+    
+    def fish_type_keys(self, a_type):
+        keys = ['Cory catfish', 'Guppy', 'Neon Tetra', 'Platies']
+        values = ['type1', 'type2', 'type3', 'type4']
+        my_dict = dict(zip(keys, values))
+        return my_dict[a_type]
+
+
+    def button_clean_clicked(self):
+        print("Кнопка была нажата!")
+        if True :
+            global connection_params, fish_list, fish_table
+            self.click_sound.play()
+
+            my_db = db(connection_params)
+            my_db.delete_all_fish()
+            fish_list = []
+            fish_table = []
+
+            
 
 
     def button_clean(self, x, y):
@@ -353,7 +452,7 @@ class SecondWindow(QDialog):
         self.button1.setGeometry(int(x*scale), int(y*scale), int(80*scale), int(30*scale))
         self.button1.setStyleSheet(button_style)
         # self.button1.setFont(self.font)
-        # self.button1.clicked.connect(self.button_clicked)
+        self.button1.clicked.connect(self.button_clean_clicked)
 
 
     def button_add(self, x, y):
@@ -366,7 +465,7 @@ class SecondWindow(QDialog):
         self.button.setGeometry(int(x*scale), int(y*scale), int(120*scale), int(50*scale))
         self.button.setStyleSheet(button_style)
         # self.button.setFont(self.font)
-        self.button.clicked.connect(self.button_clicked)
+        self.button.clicked.connect(self.button_add_clicked)
 
 
 
@@ -379,7 +478,7 @@ class SecondWindow(QDialog):
         self.slider.setMaximum(60)  # Устанавливаем максимальное значение
         self.slider.setValue(15)  # Устанавливаем начальное значение
         self.slider.setTickInterval(10)  # Устанавливаем интервал меток
-        self.slider.valueChanged.connect(self.update_slider_label)  # Подключаем обновление метки к изменению значения слайдера
+        self.slider.valueChanged.connect(self.update_slider_action)  # Подключаем обновление метки к изменению значения слайдера
 
         self.slider.setStyleSheet("QSlider::groove:horizontal {"
                           "    height: 20px;"  # Устанавливаем высоту бара
@@ -395,10 +494,11 @@ class SecondWindow(QDialog):
                           "}"
                           )
         # Создание метки для отображения текущего значения слайдера
-        self.slider_label = QLabel('50', self)
+        self.slider_label = QLabel('15', self)
         self.slider_label.move(int((x + 400 + 10)*scale), int(y*scale))  # Устанавливаем позицию метки
 
-    def update_slider_label(self, value):
+    def update_slider_action(self, value):
+        self.age << value
         self.slider_label.setText(str(value))  # Обновляем значение метки при изменении значения слайдера
 
 
@@ -407,8 +507,14 @@ class SecondWindow(QDialog):
         self.combo_box.setFixedSize(int(200*scale), int(30*scale))
         self.combo_box.setStyleSheet("font-size: 14pt;")  # Установка размера шрифта 14pt
 
-        self.combo_box.addItems(["Option 1", "Option 2", "Option 3", "Option 4"])
+        self.combo_box.addItems(["Cory catfish", "Guppy", "Neon Tetra", "Platies"])
         self.combo_box.move(int(x*scale), int(y*scale))
+        self.combo_box.activated.connect(self.get_type)
+
+    def get_type(self, index):
+        selected_option = self.combo_box.itemText(index)
+        self.type = selected_option
+        print("Selected option:", selected_option)
 
     def add_radio_buttons(self, x, y):
 
@@ -421,9 +527,23 @@ class SecondWindow(QDialog):
         self.radio_male.setStyleSheet("QRadioButton { font-size: 40px; }")
         self.radio_female.setStyleSheet("QRadioButton { font-size: 40px; }")
 
+         # Подключаем слоты для сигналов toggled радиокнопок
+        self.radio_male.toggled.connect(self.on_male_toggled)
+        self.radio_female.toggled.connect(self.on_female_toggled)
+
         # # Устанавливаем размер круглого кржочка
         # self.radio_male.setStyleSheet("QRadioButton::indicator { width: 20px; height: 20px; }")
         # self.radio_female.setStyleSheet("QRadioButton::indicator { width: 20px; height: 20px; }")
+
+    def on_male_toggled(self, checked):
+        if checked:
+            self.sex = "M"
+            print("Selected gender: Male")
+
+    def on_female_toggled(self, checked):
+        if checked:
+            self.sex = "F"
+            print("Selected gender: Female")
 
 class db:
     def __init__(self, connection_params):
@@ -443,20 +563,20 @@ class db:
         except:
             print('Can`t establish connection to database')
 
-    def add_fish(self, a , b):
+    def add_fish(self, type_of_fish, sex, age):
 
         try:
             # пытаемся подключиться к базе данных
-            conn = psycopg2.connect(dbname='fish3', user='postgres', password='1', host='localhost', port='5432')
+            conn = psycopg2.connect(**self.connection_params)
             cursor = conn.cursor()
 
             # SQL-запрос для добавления новой строки
             insert_query = "INSERT INTO allfish (type_of_fish, sex, age, date_entered) VALUES (%s, %s, %s, %s)"  # замените column1, column2 и column3 на реальные названия столбцов
 
-            current_time = datetime.now().replace(microsecond=0)  # убираем миллисекунды
+            current_time = datetime.datetime.now().replace(microsecond=0)  # убираем миллисекунды
         
             # данные для новой строки
-            new_data = ('Neon Tetra', 'F', 100 ,current_time)  # замените value1, value2 и value3 на реальные значения
+            new_data = (type_of_fish, sex, age ,current_time)  # замените value1, value2 и value3 на реальные значения
 
             # выполнение запроса
             cursor.execute(insert_query, new_data)
@@ -473,6 +593,546 @@ class db:
         except psycopg2.Error as e:
             # в случае ошибки выводим сообщение
             print('Ошибка при добавлении записи в базу данных:', e)
+
+    def delete_all_fish(self):
+        try:
+            conn = psycopg2.connect(**self.connection_params)
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM allfish')
+            conn.commit()  # Не забудьте подтвердить изменения с помощью commit()
+            cursor.close()
+            conn.close()
+            print('All fish deleted successfully.')
+        except psycopg2.Error as e:
+            print('Error deleting fish:', e)
+
+class ServiceWindow(QDialog):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Aquarium maintaince")
+        self.setFixedSize(int(600*scale), int(320*scale))  # Установка фиксированного размера окна
+        # self.label = QLabel("Это второе окно", self)
+        # self.label.move(int(25*scale), int(25*scale))  # Установка позиции для метки
+
+        self.click_sound = QSound("resources/click.wav")  # Указываем путь к звуковому файлу
+        a = Fider()
+        self.left = int(a.food_left())
+        self.add_filter()
+        self.add_feeder()
+        self.add_heater()
+
+    def add_filter(self):
+        label = QLabel("Filter", self)
+        label.move(int(25*scale), int(25*scale))  # Установка позиции для метки
+        label_font = QFont("Arial", 16)  # Создаем экземпляр QFont с указанным шрифтом и размером
+        label.setFont(label_font)  # Устанавливаем шрифт для метки
+        
+        a = Fider()
+        b = a.filter_status()
+        global progress_bar_filter
+        progress_bar_filter = ProgressBar(self, int(200*scale), int(25*scale), 0, 100, 0 )
+        progress_bar_filter.move(int(110*scale), int(25*scale))  
+        progress_bar_filter.set_progress_for_filter(b)
+
+        self.button_clean_filter(int(350), int(23))
+
+        self.button_switch_filter(475, 23)
+        
+
+    def add_feeder(self):
+        
+        label = QLabel("Feeder", self)
+        label.move(int(25*scale), int(100*scale))  # Установка позиции для метки
+        label_font = QFont("Arial", 16)  # Создаем экземпляр QFont с указанным шрифтом и размером
+        label.setFont(label_font)  # Устанавливаем шрифт для метки
+        
+        global progress_bar_feeder
+        progress_bar_feeder= ProgressBar(self, int(200*scale), int(25*scale), 0, 100, 0 )
+        progress_bar_feeder.move(int(110*scale), int(100*scale))  
+        progress_bar_feeder.set_progress_for_feeder(self.left)
+
+        self.button_topup_feeder(int(350), int(98))
+        self.button_refresh_feeder(int(475), int(98))
+
+    def add_heater(self):
+        self.temp = 21
+        label = QLabel("Heater", self)
+        label.move(int(25*scale), int(180*scale))  # Установка позиции для метки
+        label_font = QFont("Arial", 16)  # Создаем экземпляр QFont с указанным шрифтом и размером
+        label.setFont(label_font)  # Устанавливаем шрифт для метки
+        progress_bar2 = ProgressBar(self, int(200*scale), int(25*scale), 0, 40, self.temp )
+        progress_bar2.move(int(110*scale), int(180*scale))  
+        
+        progress_bar2.set_progress_for_heater(21)
+
+        self.button_switch_heater(475, 178)
+        
+        self.temp_slider(50, 250, self.temp)
+
+        self.button_set_temp(int(350), int(178))
+
+
+    def button_clean_filter(self, x, y):
+
+        button_style = ("QPushButton { background-color: blue; color: white; font-size: 15pt; }"
+                    "QPushButton:hover { background-color: lightblue; }"
+                    "QPushButton:pressed { background-color: darkblue; }")
+        
+        button = QPushButton('Clean', self)
+        button.setGeometry(int(x*scale), int(y*scale), int(90*scale), int(30*scale))
+        button.setStyleSheet(button_style)
+        # self.button.setFont(self.font)
+        button.clicked.connect(self.button_clean_filter_clicked)
+
+    def button_clean_filter_clicked(self):
+        global filter_update_date, progress_bar_filter
+        self.click_sound.play()
+        write_current_time_to_file("cache/filter_date.txt")
+        filter_update_date = datetime.datetime.now().replace(microsecond=0)
+        a = Fider()
+        b = a.filter_status()
+        progress_bar_filter.set_progress_for_filter(b)
+
+
+    def button_topup_feeder(self, x, y):
+
+        button_style = ("QPushButton { background-color: green; color: white; font-size: 15pt; }"
+                    "QPushButton:hover { background-color: lightblue; }"
+                    "QPushButton:pressed { background-color: darkblue; }")
+        
+        button = QPushButton('Top Up', self)
+        button.setGeometry(int(x*scale), int(y*scale), int(90*scale), int(30*scale))
+        button.setStyleSheet(button_style)
+        # self.button.setFont(self.font)
+        button.clicked.connect(self.button_topup_feeder_clicked)
+
+    def button_topup_feeder_clicked(self):
+        global feeder_update_date
+        self.click_sound.play()
+        write_current_time_to_file("cache/feeder_date.txt")
+        feeder_update_date = datetime.datetime.now().replace(microsecond=0)
+        self.button_refresh_feeder_clicked()
+        global progress_bar_feeder
+        
+        a = Fider()
+        b = a.food_left()
+        progress_bar_feeder.set_progress_for_feeder(int(b))
+
+        
+
+    def button_refresh_feeder(self, x, y):
+
+        button_style = ("QPushButton { background-color: blue; color: white; font-size: 15pt; }"
+                    "QPushButton:hover { background-color: lightblue; }"
+                    "QPushButton:pressed { background-color: darkblue; }")
+        
+        button = QPushButton('Refresh', self)
+        button.setGeometry(int(x*scale), int(y*scale), int(90*scale), int(30*scale))
+        button.setStyleSheet(button_style)
+        # self.button.setFont(self.font)
+        button.clicked.connect(self.button_refresh_feeder_clicked)
+
+    def button_refresh_feeder_clicked(self):
+        global progress_bar
+        self.click_sound.play()
+        a = Fider()
+        b = a.food_left()
+        progress_bar.set_progress_for_feeder(int(b))
+        print(b)
+
+
+
+    def button_switch_heater(self, x, y):
+        global heater_switch
+        self.button_style_off = ("QPushButton { background-color: grey; color: white; font-size: 15pt; }"
+                            "QPushButton:hover { background-color: lightblue; }"
+                            "QPushButton:pressed { background-color: darkblue; }")
+        self.button_style_on = ("QPushButton { background-color: red; color: white; font-size: 15pt; }"
+                            "QPushButton:hover { background-color: lightblue; }"
+                            "QPushButton:pressed { background-color: darkblue; }")
+        
+        self.button = QPushButton('ON/OFF', self)
+        self.button.setGeometry(int(x*scale), int(y*scale), int(90*scale), int(30*scale))
+        self.button.clicked.connect(self.button_switch_heater_clicked)
+
+        # Устанавливаем начальный стиль кнопки в зависимости от значения heater_switch
+        if heater_switch == True:
+            self.button.setStyleSheet(self.button_style_on)
+        else:
+            self.button.setStyleSheet(self.button_style_off)
+
+    def button_switch_heater_clicked(self):
+        global heater_switch
+        self.click_sound.play()
+
+        heater_switch = self.switch_off_on(heater_switch)
+        print(heater_switch)
+
+        # После изменения состояния переменной heater_switch меняем стиль кнопки
+        if heater_switch == True:
+            self.button.setStyleSheet(self.button_style_on)
+        else:
+            self.button.setStyleSheet(self.button_style_off)
+
+    def switch_off_on(self, a_value):
+        return not a_value  # Просто инвертируем значение
+    
+    def temp_slider(self, x, y, temp):
+        self.slider = QSlider(self)
+        self.slider.setOrientation(Qt.Horizontal)  # Устанавливаем горизонтальную ориентацию
+        self.slider.setFixedSize(int(500*scale), int(25*scale))  # Устанавливаем размеры слайдера
+        self.slider.move(int(x*scale), int(y*scale))  # Устанавливаем позицию для слайдера
+        self.slider.setMinimum(8)  # Устанавливаем минимальное значение
+        self.slider.setMaximum(34)  # Устанавливаем максимальное значение
+        self.slider.setValue(temp)  # Устанавливаем начальное значение
+        self.slider.setTickPosition(QSlider.TicksBelow)
+        self.slider.setTickInterval(2)  # Устанавливаем интервал меток
+        self.slider.setPageStep(2)
+        
+        self.slider.valueChanged.connect(self.update_slider_action)  # Подключаем обновление метки к изменению значения слайдера
+
+        self.slider.setStyleSheet("QSlider::groove:horizontal {"
+                          "    height: 30px;"  # Устанавливаем высоту бара
+                          "    border-radius: 5px;"  # Устанавливаем скругление углов
+                          "    background: #cce6ff;"  # Устанавливаем цвет бара
+                          "}"
+                          "QSlider::handle:horizontal {"
+                          "    background: #ffd633;"  # Устанавливаем цвет ползунка
+                          "    border: 2px solid #555;"  # Устанавливаем обводку ползунка
+                          "    width: 60px;"  # Устанавливаем ширину ползунка
+                          "    margin: -5px 0px;"  # Устанавливаем отступы
+                          "    border-radius: 25px;"  # Устанавливаем скругление углов ползунка
+                          "}"
+                          )
+        # Создание метки для отображения текущего значения слайдера
+        self.slider_label = QLabel(str(temp), self)
+        self.slider_label.move(int((x + 500 + 10)*scale), int(y*scale))  # Устанавливаем позицию метки
+
+    def update_slider_action(self, value):
+        self.temp << value
+        self.slider_label.setText(str(value))  # Обновляем значение метки при изменении значения слайдера
+
+    def button_set_temp(self, x, y):
+
+        button_style = ("QPushButton { background-color: green; color: white; font-size: 15pt; }"
+                    "QPushButton:hover { background-color: lightblue; }"
+                    "QPushButton:pressed { background-color: darkblue; }")
+        
+        button = QPushButton('Set temp', self)
+        button.setGeometry(int(x*scale), int(y*scale), int(90*scale), int(30*scale))
+        button.setStyleSheet(button_style)
+        # self.button.setFont(self.font)
+        button.clicked.connect(self.button_set_temp_clicked)
+
+    def button_set_temp_clicked(self):
+        self.click_sound.play()
+
+    def button_switch_filter(self, x, y):
+        global filter_switch
+        self.button1_style_off = ("QPushButton { background-color: grey; color: white; font-size: 15pt; }"
+                            "QPushButton:hover { background-color: lightblue; }"
+                            "QPushButton:pressed { background-color: darkblue; }")
+        self.button1_style_on = ("QPushButton { background-color: red; color: white; font-size: 15pt; }"
+                            "QPushButton:hover { background-color: lightblue; }"
+                            "QPushButton:pressed { background-color: darkblue; }")
+        
+        self.button1 = QPushButton('ON/OFF', self)
+        self.button1.setGeometry(int(x*scale), int(y*scale), int(90*scale), int(30*scale))
+        self.button1.clicked.connect(self.button_switch_filter_clicked)
+
+        # Устанавливаем начальный стиль кнопки в зависимости от значения filter_switch
+        if filter_switch == True:
+            self.button1.setStyleSheet(self.button1_style_on)
+        else:
+            self.button1.setStyleSheet(self.button1_style_off)
+
+    def button_switch_filter_clicked(self):
+        global filter_switch
+        self.click_sound.play()
+
+        filter_switch = self.switch_off_on(filter_switch)
+        print(filter_switch)
+
+        # После изменения состояния переменной filter_switch меняем стиль кнопки
+        if filter_switch == True:
+            self.button1.setStyleSheet(self.button1_style_on)
+        else:
+            self.button1.setStyleSheet(self.button1_style_off)
+
+
+
+class StatsWindow(QDialog):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Stats and analitics")
+        self.setFixedSize(int(500*scale), int(350*scale))  # Установка фиксированного размера окна
+        # self.label = QLabel("Это второе окно", self)
+        # self.label.move(int(25*scale), int(25*scale))  # Установка позиции для метки
+
+        self.click_sound = QSound("resources/click.wav")  # Указываем путь к звуковому файлу
+
+
+
+class ProgressBar(QWidget):
+    def __init__(self, parent, x, y, min, max, set):
+        super().__init__(parent)
+        self.x = x
+        self.y = y
+        self.min = min
+        self.max = max
+        self.set = set
+        self.initUI()
+
+    def initUI(self):
+        self.progress_bar = QProgressBar(self)
+        self.progress_bar.setGeometry(0, 0, self.x, self.y)  # Учитываем размеры родительского объекта
+        self.progress_bar.setMinimum(self.min)
+        self.progress_bar.setMaximum(self.max)
+        self.progress_bar.setValue(self.set)
+        
+
+        # self.setWindowTitle('Пример прогресс-бара')
+        # self.setGeometry(100, 100, self.parent_width - 200, 100)  # Устанавливаем размеры виджета ProgressBar
+    
+    def set_progress_for_filter(self, value):
+        self.progress_bar.setValue(value)
+        if value > 85:
+            self.progress_bar.setStyleSheet("""
+                QProgressBar {
+                    border: 2px solid grey;
+                    border-radius: 5px;
+                    background-color: #f0f0f0;
+                    text-align: center;  /* Центрирование текста */
+                    font-size: 35px;  /* Размер шрифта */
+                    color: black;  /* Цвет текста */
+                    font-weight: bold;  /* Жирный текст */
+                }
+                QProgressBar::chunk {
+                    background-color: #cc0000;
+                    width: 10px;
+                    margin: 1px;
+                }
+            """)
+        elif value > 70:
+            self.progress_bar.setStyleSheet("""
+                QProgressBar {
+                    border: 2px solid grey;
+                    border-radius: 5px;
+                    background-color: #f0f0f0;
+                    text-align: center;  /* Центрирование текста */
+                    font-size: 35px;  /* Размер шрифта */
+                    color: black;  /* Цвет текста */
+                    font-weight: bold;  /* Жирный текст */
+                }
+                QProgressBar::chunk {
+                    background-color: #ffa31a;
+                    width: 10px;
+                    margin: 1px;
+                }
+            """)
+        else:
+            self.progress_bar.setStyleSheet("""
+                QProgressBar {
+                    border: 2px solid grey;
+                    border-radius: 5px;
+                    background-color: #f0f0f0;
+                    text-align: center;  /* Центрирование текста */
+                    font-size: 35px;  /* Размер шрифта */
+                    color: black;  /* Цвет текста */
+                    font-weight: bold;  /* Жирный текст */
+                }
+                QProgressBar::chunk {
+                    background-color: green;
+                    width: 10px;
+                    margin: 1px;
+                }
+            """)
+
+    def set_progress_for_feeder(self, value):
+        self.progress_bar.setValue(value)
+        if value < 20:
+            self.progress_bar.setStyleSheet("""
+                QProgressBar {
+                    border: 2px solid grey;
+                    border-radius: 5px;
+                    background-color: #f0f0f0;
+                    text-align: center;  /* Центрирование текста */
+                    font-size: 35px;  /* Размер шрифта */
+                    color: black;  /* Цвет текста */
+                    font-weight: bold;  /* Жирный текст */
+                }
+                QProgressBar::chunk {
+                    background-color: #cc0000;
+                    width: 10px;
+                    margin: 1px;
+                }
+            """)
+        elif value < 40:
+            self.progress_bar.setStyleSheet("""
+                QProgressBar {
+                    border: 2px solid grey;
+                    border-radius: 5px;
+                    background-color: #f0f0f0;
+                    text-align: center;  /* Центрирование текста */
+                    font-size: 35px;  /* Размер шрифта */
+                    color: black;  /* Цвет текста */
+                    font-weight: bold;  /* Жирный текст */
+                }
+                QProgressBar::chunk {
+                    background-color: #ffa31a;
+                    width: 10px;
+                    margin: 1px;
+                }
+            """)
+        else:
+            self.progress_bar.setStyleSheet("""
+                QProgressBar {
+                    border: 2px solid grey;
+                    border-radius: 5px;
+                    background-color: #f0f0f0;
+                    text-align: center;  /* Центрирование текста */
+                    font-size: 35px;  /* Размер шрифта */
+                    color: black;  /* Цвет текста */
+                    font-weight: bold;  /* Жирный текст */
+                }
+                QProgressBar::chunk {
+                    background-color: green;
+                    width: 10px;
+                    margin: 1px;
+                }
+            """)
+
+    def set_progress_for_heater(self, value):
+        self.progress_bar.setValue(value)
+        if value > 30:
+            self.progress_bar.setStyleSheet("""
+                QProgressBar {
+                    border: 2px solid grey;
+                    border-radius: 5px;
+                    background-color: #f0f0f0;
+                    text-align: center;  /* Центрирование текста */
+                    font-size: 35px;  /* Размер шрифта */
+                    color: black;  /* Цвет текста */
+                    font-weight: bold;  /* Жирный текст */
+                }
+                QProgressBar::chunk {
+                    background-color: #cc0000;
+                    width: 10px;
+                    margin: 1px;
+                }
+            """)
+        elif value > 18:
+            self.progress_bar.setStyleSheet("""
+                QProgressBar {
+                    border: 2px solid grey;
+                    border-radius: 5px;
+                    background-color: #f0f0f0;
+                    text-align: center;  /* Центрирование текста */
+                    font-size: 35px;  /* Размер шрифта */
+                    color: black;  /* Цвет текста */
+                    font-weight: bold;  /* Жирный текст */
+                }
+                QProgressBar::chunk {
+                    background-color: #ffa31a;
+                    width: 10px;
+                    margin: 1px;
+                }
+            """)
+        else:
+            self.progress_bar.setStyleSheet("""
+                QProgressBar {
+                    border: 2px solid grey;
+                    border-radius: 5px;
+                    background-color: #f0f0f0;
+                    text-align: center;  /* Центрирование текста */
+                    font-size: 35px;  /* Размер шрифта */
+                    color: black;  /* Цвет текста */
+                    font-weight: bold;  /* Жирный текст */
+                }
+                QProgressBar::chunk {
+                    background-color: blue;
+                    width: 10px;
+                    margin: 1px;
+                }
+            """)
+
+        # Заменяем значок процента на значок градуса Цельсия
+        self.progress_bar.setFormat("%v°C")
+
+class Fider:
+    def __init__(self):
+        self.type = {
+            'Cory catfish': 200,
+            'Guppy': 250,
+            'Neon Tetra': 230,
+            'Platies': 300
+        } 
+        # global feeder_update_date
+        self.amount = 0
+        # self.topup_date = datetime.datetime(2024, 3, 13, 20, 5, 50)
+        # now = datetime.datetime.now()
+        # self.topup_date = now - timedelta(days=2)
+        # self.topup_date  = feeder_update_date
+
+    def fish_portion(self, a_fish):
+        age = Aquarium.calc_age(a_fish[1], a_fish[3])
+        default_portion = self.type[a_fish[4]]
+
+        return default_portion + (age-50)*1.1
+
+    def calc_full_portion(self, option):
+        global fish_table, feeder_update_date, filter_update_date
+        if option == 0:
+            update_date = feeder_update_date
+        else:
+            update_date = filter_update_date
+
+        fish_table_safe = copy.deepcopy(fish_table)
+        for a_fish in fish_table_safe:
+            days = self.fish_time_since(update_date, a_fish[1])
+            portion = self.fish_portion(a_fish)
+            self.amount = self.amount + portion*days
+        
+        return self.amount
+    
+    def food_left(self):
+        global feeder_amount
+        p = self.calc_full_portion(0)
+        left = feeder_amount-p
+        
+        return self.calculate_percentage(left, feeder_amount)
+    
+    def filter_status(self):
+        global feeder_amount
+        p = self.calc_full_portion(1)
+        left = feeder_amount-p
+        
+        return int((100 - self.calculate_percentage(left, feeder_amount))*0.7)
+
+    def calculate_percentage(self, part, whole):
+        return (part / whole) * 100
+
+
+    def fish_time_since(self, topup_date, fish_add_date):
+        now = datetime.datetime.now()
+        # Разница между текущей датой и датой внесения рыбы
+        fish_age = now - fish_add_date
+
+        # Разница между текущей датой и датой последней дозаправки
+        topup_age = now - topup_date
+
+        # Если рыба была добавлена позже, то используем это значение
+        if fish_age > topup_age:
+            days_since = fish_age.days
+        else:
+            days_since = topup_age.days
+
+        return days_since
+
+
+
+
+
 
 
 def main():

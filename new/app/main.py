@@ -13,6 +13,7 @@ import copy
 from datetime import timedelta
 from PyQt5.QtGui import QPainter, QColor
 import time
+import matplotlib.pyplot as plt
 
 # from datetime import datetime
 
@@ -39,6 +40,8 @@ heater_switch = True
 filter_switch = True
 
 feeder_amount = 50000
+
+led_switch = True
 
 # show_red_circle = True
 
@@ -251,13 +254,12 @@ class Aquarium(QMainWindow):
         resource_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources')
 
         self.aquarium_image = QPixmap(os.path.join(resource_dir,'Full.png'))
+        self.light_image = QPixmap(os.path.join(resource_dir,'Light_on.png'))
 
         self.click_sound = QSound(os.path.join(resource_dir,"click.wav"))  # Указываем путь к звуковому файлу
 
 
         global fish_images
-
-        
 
         # fish_images с обновленными путями к изображениям
         fish_images = {
@@ -267,12 +269,25 @@ class Aquarium(QMainWindow):
             'type4': [QPixmap(os.path.join(resource_dir, 'type4_fish1.png')), QPixmap(os.path.join(resource_dir, 'type4_fish2.png')), QPixmap(os.path.join(resource_dir, 'type4_fish3.png')), QPixmap(os.path.join(resource_dir, 'type4_fish2.png')), QPixmap(os.path.join(resource_dir, 'type4_fish1.png')), QPixmap(os.path.join(resource_dir, 'type4_fish4.png')), QPixmap(os.path.join(resource_dir, 'type4_fish5.png')), QPixmap(os.path.join(resource_dir, 'type4_fish4.png'))]
         }
 
+        # Инициализация стилей кнопок
+        self.button_style3 = ("QPushButton { background-color: red; color: white; font-size: 16pt; }"
+                        "QPushButton:hover { background-color: lightblue; }"
+                        "QPushButton:checked { background-color: red; }")
+        self.button_style4 = ("QPushButton { background-color: grey; color: white; font-size: 16pt; }"
+                        "QPushButton:hover { background-color: lightblue; }"
+                        "QPushButton:checked { background-color: grey; }")
+        self.button_style5 = ("QPushButton { background-color: blue; color: white; font-size: 16pt; }"
+                        "QPushButton:hover { background-color: lightblue; }"
+                        "QPushButton:checked { background-color: blue; }")
+
+
         self.fish_list = []
         self.create_fish()
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_fish)
         self.timer.start(220)  # Увеличение интервала для замедления рыбок
-        self.all_buttons(1150, 50)
+        self.all_buttons(1170, 500)
+        self.buttons_light(1140, 100)
         
 
 
@@ -320,6 +335,68 @@ class Aquarium(QMainWindow):
         self.button2.setStyleSheet(button_style2)
         self.button2.setFont(self.font)
         self.button2.clicked.connect(self.button_clicked_open_stats_window)
+
+    def buttons_light(self, x, y):
+        self.button3 = QPushButton('ON', self)
+        self.button3.setGeometry(int((x)*scale), int(y*scale), int(70*scale), int(50*scale))
+        self.button3.setStyleSheet(self.button_style3)
+        self.button3.setCheckable(True)
+        self.button3.clicked.connect(self.button_clicked_on)
+
+        self.button4 = QPushButton('OFF', self)
+        self.button4.setGeometry(int(x*scale+70*scale), int((y+0)*scale), int(70*scale), int(50*scale))
+        self.button4.setStyleSheet(self.button_style4)
+        self.button4.setCheckable(True)
+        self.button4.clicked.connect(self.button_clicked_off)
+
+        self.button5 = QPushButton('AUTO', self)
+        self.button5.setGeometry(int(x*scale + 140*scale), int((y+0)*scale), int(70*scale), int(50*scale))
+        self.button5.setStyleSheet(self.button_style5)
+        self.button5.setCheckable(True)
+        self.button5.clicked.connect(self.button_clicked_auto)
+
+        self.button_clicked_auto_action()
+
+    def button_clicked_on(self):
+        self.click_sound.play()
+        self.button3.setChecked(True)
+        self.button4.setChecked(False)
+        self.button5.setChecked(False)
+        global led_switch
+        led_switch = True
+
+    def button_clicked_off(self):
+        self.click_sound.play()
+        self.button3.setChecked(False)
+        self.button4.setChecked(True)
+        self.button5.setChecked(False)
+        global led_switch
+        led_switch = False
+
+    def button_clicked_auto(self):
+        self.click_sound.play()
+        self.button_clicked_auto_action()
+
+    def button_clicked_auto_action(self):
+        self.button3.setChecked(False)
+        self.button4.setChecked(False)
+        self.button5.setChecked(True)
+        global led_switch
+        led_switch = True
+
+    def update_button_styles(self):
+        # Сначала применяем оригинальные стили
+        self.button3.setStyleSheet(self.button_style3)
+        self.button4.setStyleSheet(self.button_style4)
+        self.button5.setStyleSheet(self.button_style5)
+        # Затем добавляем стили для нажатых кнопок
+        if self.button3.isChecked():
+            self.button3.setStyleSheet(self.button3.styleSheet() + "QPushButton { background-color: red; }")
+        elif self.button4.isChecked():
+            self.button4.setStyleSheet(self.button4.styleSheet() + "QPushButton { background-color: grey; }")
+        elif self.button5.isChecked():
+            self.button5.setStyleSheet(self.button5.styleSheet() + "QPushButton { background-color: blue; }")
+
 
 
     # Функция, вызываемая при нажатии на кнопку
@@ -404,17 +481,21 @@ class Aquarium(QMainWindow):
 
 
     def paintEvent(self, event):
-        global fish_list, filter_switch, heater_switch
+        global fish_list, filter_switch, heater_switch, led_switch
         painter = QPainter(self)
-        
         painter.drawPixmap(int(-130*scale), int(-80*scale), int(1400*scale), int(1000*scale), self.aquarium_image)
+
+        if led_switch:
+            painter.drawPixmap(int(-130*scale), int(-80*scale), int(1400*scale), int(1000*scale), self.light_image)
+
         if filter_switch:
             painter.setBrush(QColor('red'))
             painter.drawEllipse(int(1039*scale), int(189*scale), int(13*scale), int(13*scale))
 
         if heater_switch:
             painter.setBrush(QColor('red'))
-            painter.drawEllipse(int(70*scale), int(162*scale), int(8*scale), int(8*scale))
+            painter.drawEllipse(int(66*scale), int(150*scale), int(8*scale), int(8*scale))
+            
 
         for fish in fish_list:
             fish.draw(painter)
@@ -933,12 +1014,67 @@ class StatsWindow(QDialog):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Stats and analitics")
-        self.setFixedSize(int(500*scale), int(350*scale))  # Установка фиксированного размера окна
-        # self.label = QLabel("Это второе окно", self)
-        # self.label.move(int(25*scale), int(25*scale))  # Установка позиции для метки
+        self.setFixedSize(int(800*scale), int(600*scale))
+        self.setStyleSheet("background-color: white;")  # Устанавливаем белый фон для окна
+        self.click_sound = QSound("resources/click.wav")
 
-        self.click_sound = QSound("resources/click.wav")  # Указываем путь к звуковому файлу
+        # Создание данных для графиков
+        labels = ['A', 'B', 'C', 'D']
+        values = [30, 40, 20, 10]
 
+        self.pie_chart(labels, values)
+        self.line_chart(labels, values)
+        self.bar_chart(labels, values)
+
+        self.add_sll_plots()
+        
+
+    def add_sll_plots(self):
+
+        # Добавляем изображения графиков в окно
+        pie_chart_label = QLabel(self)
+        pie_chart_label.setGeometry(int(50*scale), int(50*scale), int(300*scale), int(300*scale))  # Позиция и размеры изображения
+        pie_chart_label.setPixmap(QPixmap('cache/plots/pie_chart.png'))
+
+        line_chart_label = QLabel(self)
+        line_chart_label.setGeometry(int(300*scale), int(50*scale), int(300*scale), int(300*scale))
+        line_chart_label.setPixmap(QPixmap('cache/plots/line_chart.png'))
+
+        bar_chart_label = QLabel(self)
+        bar_chart_label.setGeometry(int(500*scale), int(50*scale), int(300*scale), int(300*scale))  # Позиция и размеры изображения
+        bar_chart_label.setPixmap(QPixmap('cache/plots/bar_chart.png'))
+
+
+    def pie_chart(self, labels, values):
+        # Круговая диаграмма
+        plt.figure(figsize=(3, 3))
+        plt.pie(values, labels=labels, autopct='%1.1f%%')
+        plt.title('Pie Chart')
+        plt.axis('equal')  # Чтобы круг был кругом, а не эллипсом
+        plt.savefig('cache/plots/pie_chart.png')  # Сохраняем график в файл
+        plt.close()
+
+    def line_chart(self, labels, values):
+        # Линейная диаграмма
+        plt.figure(figsize=(3, 3))
+        plt.plot(labels, values, marker='o')
+        plt.title('Line Chart')
+        plt.xlabel('Labels')
+        plt.ylabel('Values')
+        plt.grid(True)
+        plt.savefig('cache/plots/line_chart.png')
+        plt.close()
+
+    def bar_chart(self, labels, values):
+         # Столбчатая диаграмма
+        plt.figure(figsize=(6, 4))
+        plt.bar(labels, values, color='skyblue')
+        plt.title('Bar Chart')
+        plt.xlabel('Labels')
+        plt.ylabel('Values')
+        plt.grid(axis='y')
+        plt.savefig('cache/plots/bar_chart.png')  # Сохраняем график в файл
+        plt.close()
 
 
 class ProgressBar(QWidget):

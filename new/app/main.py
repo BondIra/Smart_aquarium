@@ -14,6 +14,7 @@ from datetime import timedelta
 from PyQt5.QtGui import QPainter, QColor
 import time
 import matplotlib.pyplot as plt
+import threading
 
 # from datetime import datetime
 
@@ -54,6 +55,32 @@ connection_params = {
     'port': '5432'
 }
 
+global_time = None
+led_auto_switch = True
+
+# Функция, которая будет работать в отдельном потоке и обновлять глобальную переменную
+def update_global_time():
+    global global_time, led_auto_switch, led_switch
+    while True:
+        # Получаем текущее время
+        current_time_str = time.strftime("%H:%M:%S", time.localtime())
+        current_time = time.localtime()
+        # Обновляем глобальную переменную
+        global_time = [current_time, current_time_str]
+        current_hour = current_time.tm_hour
+        if led_auto_switch:
+            if 7 <= current_hour < 21:
+                led_switch = True
+            else:
+                led_switch = False
+    
+        # Ждем 1 секунду перед обновлением
+        time.sleep(1)
+
+# Запускаем функцию в отдельном потоке
+update_thread = threading.Thread(target=update_global_time)
+update_thread.daemon = True  # Устанавливаем поток в демонский режим, чтобы он завершался при завершении основной программы
+update_thread.start()
 
 def write_current_time_to_file(file_path):
     current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
@@ -359,30 +386,40 @@ class Aquarium(QMainWindow):
 
     def button_clicked_on(self):
         self.click_sound.play()
+        global led_auto_switch
         self.button3.setChecked(True)
         self.button4.setChecked(False)
         self.button5.setChecked(False)
         global led_switch
         led_switch = True
+        if led_auto_switch:
+            led_auto_switch = False
+        
 
     def button_clicked_off(self):
+        global led_auto_switch
         self.click_sound.play()
         self.button3.setChecked(False)
         self.button4.setChecked(True)
         self.button5.setChecked(False)
         global led_switch
         led_switch = False
+        if led_auto_switch:
+            led_auto_switch = False
+
 
     def button_clicked_auto(self):
         self.click_sound.play()
         self.button_clicked_auto_action()
 
     def button_clicked_auto_action(self):
+        global led_auto_switch
         self.button3.setChecked(False)
         self.button4.setChecked(False)
         self.button5.setChecked(True)
-        global led_switch
-        led_switch = True
+        if not led_auto_switch:
+            led_auto_switch = True
+        
 
     def update_button_styles(self):
         # Сначала применяем оригинальные стили
@@ -401,20 +438,20 @@ class Aquarium(QMainWindow):
 
     # Функция, вызываемая при нажатии на кнопку
     def button_clicked_open_stats_window(self):
-        print("Кнопка была нажата!")
+        # print("Кнопка была нажата!")
         self.click_sound.play()
         stats_window = StatsWindow()
         stats_window.exec_()
 
     def button_clicked_open_add_window(self):
-        print("Кнопка была нажата!")
+        # print("Кнопка была нажата!")
         self.click_sound.play()
         second_window = SecondWindow()
         second_window.exec_()
         
 
     def button_clicked_open_service_window(self):
-        print("Кнопка была нажата!")
+        # print("Кнопка была нажата!")
         self.click_sound.play()
         service_window = ServiceWindow()
         service_window.exec_()
@@ -519,7 +556,7 @@ class SecondWindow(QDialog):
         self.button_clean(300, 300)
     
     def button_add_clicked(self):
-        print("Кнопка была нажата!")
+        # print("Кнопка была нажата!")
         global aquarium_volume, fish_list
         if len(fish_list) < aquarium_volume/2:
             self.click_sound.play()
@@ -549,7 +586,7 @@ class SecondWindow(QDialog):
 
 
     def button_clean_clicked(self):
-        print("Кнопка была нажата!")
+        # print("Кнопка была нажата!")
         if True :
             global connection_params, fish_list, fish_table
             self.click_sound.play()
@@ -678,7 +715,7 @@ class db:
             all_fish = cursor.fetchall()
             cursor.close()
             conn.close()
-            print(all_fish)
+            # print(all_fish)
             return all_fish
         except:
             print('Can`t establish connection to database')
@@ -860,7 +897,7 @@ class ServiceWindow(QDialog):
         a = Fider()
         b = a.food_left()
         progress_bar_feeder.set_progress_for_feeder(int(b))
-        print(b)
+        # print(b)
 
 
 
@@ -888,7 +925,7 @@ class ServiceWindow(QDialog):
         self.click_sound.play()
 
         heater_switch = self.switch_off_on(heater_switch)
-        print(heater_switch)
+        # print(heater_switch)
 
         # После изменения состояния переменной heater_switch меняем стиль кнопки
         if heater_switch == True:
@@ -947,12 +984,6 @@ class ServiceWindow(QDialog):
         # self.button.setFont(self.font)
         button.clicked.connect(self.button_set_temp_clicked)
 
-    def increase_value(self, start_value, target_value):
-        current_value = start_value
-        while current_value < target_value:
-            current_value += 1
-            print(current_value)
-            time.sleep(1)
 
     def button_set_temp_clicked(self):
         self.click_sound.play()
@@ -960,13 +991,13 @@ class ServiceWindow(QDialog):
         if heater_temp < self.temp:
             while heater_temp < self.temp:
                 heater_temp += 1
-                print(heater_temp)
+                # print(heater_temp)
                 self.progress_bar_heater.set_progress_for_heater(heater_temp)
                 time.sleep(0.5)
         elif heater_temp > self.temp:
             while heater_temp > self.temp:
                 heater_temp -= 1
-                print(heater_temp)
+                # print(heater_temp)
                 self.progress_bar_heater.set_progress_for_heater(heater_temp)
                 time.sleep(0.5)
         else:
@@ -974,7 +1005,7 @@ class ServiceWindow(QDialog):
 
         write_to_file(heater_temp_path, self.temp)
         
-        print(self.temp)
+        # print(self.temp)
 
     def button_switch_filter(self, x, y):
         global filter_switch
@@ -1000,7 +1031,7 @@ class ServiceWindow(QDialog):
         self.click_sound.play()
 
         filter_switch = self.switch_off_on(filter_switch)
-        print(filter_switch)
+        # print(filter_switch)
 
         # После изменения состояния переменной filter_switch меняем стиль кнопки
         if filter_switch == True:
@@ -1343,7 +1374,7 @@ def main():
     global fish_table, connection_params
     my_db = db(connection_params)
     fish_table = my_db.get_fish()
-    print(len(fish_table))
+    # print(len(fish_table))
 
     app = QApplication(sys.argv)
     aquarium = Aquarium()

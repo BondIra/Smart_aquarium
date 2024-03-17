@@ -12,6 +12,7 @@ from PyQt5.QtWidgets import QProgressBar, QStyleOptionProgressBar, QStyle
 import copy
 from datetime import timedelta
 from PyQt5.QtGui import QPainter, QColor
+import time
 
 # from datetime import datetime
 
@@ -75,6 +76,38 @@ def read_time_from_file(file_path):
 feeder_update_date = read_time_from_file("cache/feeder_date.txt")
 
 filter_update_date = read_time_from_file("cache/filter_date.txt")
+
+
+def write_to_file(file_path, number):
+    try:
+        with open(file_path, 'w') as file:
+            file.write(str(number))  # Записываем число в файл как строку
+            print(f"Number {number} has been written to the file.")
+    except Exception as e:
+        print(f"Error occurred while writing to file: {e}")
+
+def read_from_file(file_path, default_value=0):
+    try:
+        with open(file_path, 'r') as file:
+            content = file.read().strip()  # Читаем содержимое файла и удаляем лишние пробелы
+            if content:
+                return int(content)  # Если файл не пустой, возвращаем прочитанное число
+            else:
+                print("File is empty.")
+                write_to_file(file_path, default_value)  # Если файл пустой, записываем значение по умолчанию
+                return default_value  # и возвращаем его
+    except FileNotFoundError:
+        print("File not found. Creating a new file.")
+        write_to_file(file_path, default_value)  # Если файл отсутствует, создаем новый и записываем в него значение по умолчанию
+        return default_value
+    except Exception as e:
+        print(f"Error occurred while reading from file: {e}")
+        return default_value
+
+
+heater_temp_path = "cache/heater_temp.txt"
+
+heater_temp = read_from_file(heater_temp_path, 21)
 
 
 
@@ -369,14 +402,20 @@ class Aquarium(QMainWindow):
                 fish.change_direction()
         self.update()
 
+
     def paintEvent(self, event):
-        global fish_list, filter_switch
+        global fish_list, filter_switch, heater_switch
         painter = QPainter(self)
         
         painter.drawPixmap(int(-130*scale), int(-80*scale), int(1400*scale), int(1000*scale), self.aquarium_image)
         if filter_switch:
             painter.setBrush(QColor('red'))
-            painter.drawEllipse(int(1038*scale), int(188*scale), int(15*scale), int(15*scale))
+            painter.drawEllipse(int(1039*scale), int(189*scale), int(13*scale), int(13*scale))
+
+        if heater_switch:
+            painter.setBrush(QColor('red'))
+            painter.drawEllipse(int(70*scale), int(162*scale), int(8*scale), int(8*scale))
+
         for fish in fish_list:
             fish.draw(painter)
 
@@ -655,15 +694,17 @@ class ServiceWindow(QDialog):
         self.button_refresh_feeder(int(475), int(98))
 
     def add_heater(self):
-        self.temp = 21
+        global heater_temp
+        self.temp = heater_temp
         label = QLabel("Heater", self)
         label.move(int(25*scale), int(180*scale))  # Установка позиции для метки
         label_font = QFont("Arial", 16)  # Создаем экземпляр QFont с указанным шрифтом и размером
         label.setFont(label_font)  # Устанавливаем шрифт для метки
-        progress_bar2 = ProgressBar(self, int(200*scale), int(25*scale), 0, 40, self.temp )
-        progress_bar2.move(int(110*scale), int(180*scale))  
         
-        progress_bar2.set_progress_for_heater(21)
+        self.progress_bar_heater = ProgressBar(self, int(200*scale), int(25*scale), 0, 40, self.temp )
+        self.progress_bar_heater.move(int(110*scale), int(180*scale))  
+        
+        self.progress_bar_heater.set_progress_for_heater(self.temp)
 
         self.button_switch_heater(475, 178)
         
@@ -733,11 +774,11 @@ class ServiceWindow(QDialog):
         button.clicked.connect(self.button_refresh_feeder_clicked)
 
     def button_refresh_feeder_clicked(self):
-        global progress_bar
+        global progress_bar_feeder
         self.click_sound.play()
         a = Fider()
         b = a.food_left()
-        progress_bar.set_progress_for_feeder(int(b))
+        progress_bar_feeder.set_progress_for_feeder(int(b))
         print(b)
 
 
@@ -809,8 +850,9 @@ class ServiceWindow(QDialog):
         self.slider_label.move(int((x + 500 + 10)*scale), int(y*scale))  # Устанавливаем позицию метки
 
     def update_slider_action(self, value):
-        self.temp << value
+        self.temp = value
         self.slider_label.setText(str(value))  # Обновляем значение метки при изменении значения слайдера
+
 
     def button_set_temp(self, x, y):
 
@@ -824,8 +866,34 @@ class ServiceWindow(QDialog):
         # self.button.setFont(self.font)
         button.clicked.connect(self.button_set_temp_clicked)
 
+    def increase_value(self, start_value, target_value):
+        current_value = start_value
+        while current_value < target_value:
+            current_value += 1
+            print(current_value)
+            time.sleep(1)
+
     def button_set_temp_clicked(self):
         self.click_sound.play()
+        global heater_temp_path, heater_temp
+        if heater_temp < self.temp:
+            while heater_temp < self.temp:
+                heater_temp += 1
+                print(heater_temp)
+                self.progress_bar_heater.set_progress_for_heater(heater_temp)
+                time.sleep(0.5)
+        elif heater_temp > self.temp:
+            while heater_temp > self.temp:
+                heater_temp -= 1
+                print(heater_temp)
+                self.progress_bar_heater.set_progress_for_heater(heater_temp)
+                time.sleep(0.5)
+        else:
+            heater_temp = self.temp
+
+        write_to_file(heater_temp_path, self.temp)
+        
+        print(self.temp)
 
     def button_switch_filter(self, x, y):
         global filter_switch

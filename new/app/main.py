@@ -655,7 +655,7 @@ class SecondWindow(QDialog):
         self.slider_label.move(int((x + 400 + 10)*scale), int(y*scale))  # Устанавливаем позицию метки
 
     def update_slider_action(self, value):
-        self.age << value
+        self.age = value
         self.slider_label.setText(str(value))  # Обновляем значение метки при изменении значения слайдера
 
 
@@ -1046,66 +1046,131 @@ class StatsWindow(QDialog):
         super().__init__()
         self.setWindowTitle("Stats and analitics")
         self.setFixedSize(int(800*scale), int(600*scale))
-        self.setStyleSheet("background-color: white;")  # Устанавливаем белый фон для окна
+        self.setStyleSheet("background-color: grey;")  # Устанавливаем белый фон для окна
         self.click_sound = QSound("resources/click.wav")
 
-        # Создание данных для графиков
-        labels = ['A', 'B', 'C', 'D']
-        values = [30, 40, 20, 10]
+        gender_type_age_data = self.gender_type_age_data(fish_table)
 
-        self.pie_chart(labels, values)
-        self.line_chart(labels, values)
-        self.bar_chart(labels, values)
+        gen_values = gender_type_age_data[0]
 
-        self.add_sll_plots()
+        type_values = gender_type_age_data[1]
+
+        age_list = gender_type_age_data[2]
+        
+        age_lables, age_values = self.count_elements(age_list)
+
+        gen_labels = ('Male', 'Female')
+
+        type_labels = ("Cory catfish", "Guppy", "Neon Tetra", "Platies")
+
+        # print(gen_values)
+        self.pie_chart(gen_labels, gen_values, "Gender", 50, 50)
+        self.pie_chart(type_labels, type_values, "Type", 300, 50)
+        self.bar_chart(age_lables, age_values, "Age", 50, 250)
+
+
+        # self.line_chart(labels, values)
+      
         
 
-    def add_sll_plots(self):
+    def count_elements(self, lst):
+        element_list = []
+        count_list = []
 
-        # Добавляем изображения графиков в окно
-        pie_chart_label = QLabel(self)
-        pie_chart_label.setGeometry(int(50*scale), int(50*scale), int(300*scale), int(300*scale))  # Позиция и размеры изображения
-        pie_chart_label.setPixmap(QPixmap('cache/plots/pie_chart.png'))
+        # Инициализация словаря для подсчета
+        count_dict = {}
 
-        line_chart_label = QLabel(self)
-        line_chart_label.setGeometry(int(300*scale), int(50*scale), int(300*scale), int(300*scale))
-        line_chart_label.setPixmap(QPixmap('cache/plots/line_chart.png'))
+        # Подсчет количества каждого элемента
+        for item in lst:
+            if item in count_dict:
+                count_dict[item] += 1
+            else:
+                count_dict[item] = 1
 
-        bar_chart_label = QLabel(self)
-        bar_chart_label.setGeometry(int(500*scale), int(50*scale), int(300*scale), int(300*scale))  # Позиция и размеры изображения
-        bar_chart_label.setPixmap(QPixmap('cache/plots/bar_chart.png'))
+        # Заполнение списков элементов и их количества
+        for key, value in count_dict.items():
+            element_list.append(key)
+            count_list.append(value)
+
+        return element_list, count_list
+
+    def gender_type_age_data(self, data):
+        males = 0
+        females = 0
+        type1 = 0
+        type2 = 0
+        type3 = 0
+        type4 = 0
+        age_list=[]
+        # print('gen')
+        for fish in data:
+            gen = fish[0]
+            type = fish[4]
+            if gen == "M":
+                males+=1
+                print('m')
+            elif gen == "F":
+                females+=1
+            if type == 'Cory catfish':
+              type1+=1
+            elif type == 'Guppy':
+              type2+=1
+            elif type == 'Neon Tetra':
+              type3+=1
+            elif type == 'Platies':
+              type4+=1
+            age = Aquarium.calc_age(fish[1], fish[3])
+            age_list.append(age)
+
+        return ((males, females), (type1, type2, type3, type4), age_list)
 
 
-    def pie_chart(self, labels, values):
+
+    def pie_chart(self, labels, values, name, x, y):
         # Круговая диаграмма
         plt.figure(figsize=(3, 3))
         plt.pie(values, labels=labels, autopct='%1.1f%%')
-        plt.title('Pie Chart')
+        plt.title(name)
         plt.axis('equal')  # Чтобы круг был кругом, а не эллипсом
-        plt.savefig('cache/plots/pie_chart.png')  # Сохраняем график в файл
+        plt.savefig('cache/plots/'+name+'.png')  # Сохраняем график в файл
         plt.close()
 
-    def line_chart(self, labels, values):
+        pie_chart_label = QLabel(self)
+        pie_chart_label.setGeometry(int(x*scale), int(y*scale), int(300*scale), int(300*scale))  # Позиция и размеры изображения
+        pie_chart_label.setPixmap(QPixmap('cache/plots/'+name+'.png'))
+
+    def line_chart(self, labels, values, name, x, y, xlabel='Labels', ylabel='Values'):
         # Линейная диаграмма
         plt.figure(figsize=(3, 3))
         plt.plot(labels, values, marker='o')
-        plt.title('Line Chart')
-        plt.xlabel('Labels')
-        plt.ylabel('Values')
+        plt.title(name)
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
         plt.grid(True)
-        plt.savefig('cache/plots/line_chart.png')
+        plt.savefig('cache/plots/'+name+'.png')
         plt.close()
 
-    def bar_chart(self, labels, values):
+        line_chart_label = QLabel(self)
+        line_chart_label.setGeometry(int(x*scale), int(y*scale), int(300*scale), int(300*scale))
+        line_chart_label.setPixmap(QPixmap('cache/plots/'+name+'.png'))
+
+    def bar_chart(self, labels, values, name, x, y, xlabel='Labels', ylabel='Values'):
          # Столбчатая диаграмма
-        plt.figure(figsize=(6, 4))
+        plt.figure(figsize=(10, 4))
         plt.bar(labels, values, color='skyblue')
-        plt.title('Bar Chart')
-        plt.xlabel('Labels')
-        plt.ylabel('Values')
+        plt.title(name, fontsize=int(12*scale))
+        plt.xlabel(xlabel, fontsize=int(9*scale))
+        plt.ylabel(ylabel, fontsize=int(9*scale))
         plt.grid(axis='y')
-        plt.savefig('cache/plots/bar_chart.png')  # Сохраняем график в файл
+        plt.yticks(range(int(max(values)) + 1))  # Устанавливаем цены деления от 0 до максимального значения в данных
+        # plt.xticks(range(int(max(labels)) + 1))  # Устанавливаем цены деления от 0 до максимального значения в данных
+        plt.xticks(range(0, int(max(labels))+2, 2))  # Устанавливаем цены деления с шагом 2 для оси 
+        plt.savefig('cache/plots/'+name+'.png')  # Сохраняем график в файл
         plt.close()
+
+        bar_chart_label = QLabel(self)
+        bar_chart_label.setGeometry(int(x*scale), int(y*scale), int(600*scale), int(300*scale))  # Позиция и размеры изображения
+        bar_chart_label.setPixmap(QPixmap('cache/plots/'+name+'.png'))
 
 
 class ProgressBar(QWidget):
@@ -1374,7 +1439,7 @@ def main():
     global fish_table, connection_params
     my_db = db(connection_params)
     fish_table = my_db.get_fish()
-    # print(len(fish_table))
+    print((fish_table))
 
     app = QApplication(sys.argv)
     aquarium = Aquarium()
